@@ -40,10 +40,10 @@ def sync():
 
     ldap_results = ldap_connector.search_s(config['LDAP_BASE_DN'], ldap.SCOPE_SUBTREE, 
                 config['LDAP_FILTER'], 
-                ['userPrincipalName', 'cn', 'userAccountControl'])
+                [config['IDENTIFIER'], 'cn', 'userAccountControl'])
 
     ldap_results = map(lambda x: (
-        x[1]['userPrincipalName'][0].decode(),
+        x[1][config['IDENTIFIER']][0].decode(),
         x[1]['cn'][0].decode(),
         False if int(x[1]['userAccountControl'][0].decode()) & 0b10 else True), ldap_results)
 
@@ -147,6 +147,11 @@ def read_config():
 
     config['LDAP_FILTER'] = os.environ['LDAP-MAILCOW_LDAP_FILTER'] if 'LDAP-MAILCOW_LDAP_FILTER' in os.environ else '(&(objectClass=user)(objectCategory=person))'
     config['SOGO_LDAP_FILTER'] = os.environ['LDAP-MAILCOW_SOGO_LDAP_FILTER'] if 'LDAP-MAILCOW_SOGO_LDAP_FILTER' in os.environ else "objectClass='user' AND objectCategory='person'"
+    
+    # Build AUTH_BIND_USERDN from IDENTIFIER and BASE_DN
+    identifier = os.environ.get('OPENLDAP-MAILCOW_IDENTIFIER', 'uid')
+    config['IDENTIFIER'] = identifier
+    config['AUTH_BIND_USERDN'] = os.environ.get('LDAP-MAILCOW_AUTH_BIND_USERDN', f'{identifier}=%n,{config["LDAP_BASE_DN"]}')
 
     return config
 
@@ -156,7 +161,8 @@ def read_dovecot_passdb_conf_template():
 
     return data.substitute(
         ldap_uri=config['LDAP_URI'], 
-        ldap_base_dn=config['LDAP_BASE_DN']
+        ldap_base_dn=config['LDAP_BASE_DN'],
+        auth_bind_userdn=config['AUTH_BIND_USERDN']
         )
 
 def read_sogo_plist_ldap_template():

@@ -1,3 +1,15 @@
+# openldap-mailcow
+
+This is a fork of [Programmierus/ldap-mailcow](https://github.com/Programmierus/ldap-mailcow) with modifications to support connections to OpenLDAP.
+
+**Additional Environment Variable Required**
+
+In addition to the standard variables required by `ldap-mailcow`, please set the following:
+
+- `OPENLDAP-MAILCOW_IDENTIFIER`  
+  - `uid`
+  - `mail`
+
 # ldap-mailcow
 
 Adds LDAP accounts to mailcow-dockerized and enables LDAP (e.g., Active Directory) authentication.
@@ -21,7 +33,7 @@ A python script periodically checks and creates new LDAP accounts and deactivate
 
     ```yaml
     ldap-mailcow:
-        image: programmierus/ldap-mailcow
+        image: rorgray/ldap-mailcow
         network_mode: host
         container_name: mailcowcustomized_ldap-mailcow
         depends_on:
@@ -31,15 +43,17 @@ A python script periodically checks and creates new LDAP accounts and deactivate
             - ./data/conf/dovecot:/conf/dovecot:rw
             - ./data/conf/sogo:/conf/sogo:rw
         environment:
-            - LDAP-MAILCOW_LDAP_URI=ldap(s)://dc.example.local
+            - LDAP-MAILCOW_LDAP_URI=ldap://openldap
             - LDAP-MAILCOW_LDAP_BASE_DN=OU=Mail Users,DC=example,DC=local
             - LDAP-MAILCOW_LDAP_BIND_DN=CN=Bind DN,CN=Users,DC=example,DC=local
             - LDAP-MAILCOW_LDAP_BIND_DN_PASSWORD=BindPassword
             - LDAP-MAILCOW_API_HOST=https://mailcow.example.local
             - LDAP-MAILCOW_API_KEY=XXXXXX-XXXXXX-XXXXXX-XXXXXX-XXXXXX
             - LDAP-MAILCOW_SYNC_INTERVAL=300
-            - LDAP-MAILCOW_LDAP_FILTER=(&(objectClass=user)(objectCategory=person)(memberOf:1.2.840.113556.1.4.1941:=CN=Group,CN=Users,DC=example DC=local))
-            - LDAP-MAILCOW_SOGO_LDAP_FILTER=objectClass='user' AND objectCategory='person' AND memberOf:1.2.840.113556.1.4.1941:='CN=Group,CN=Users,DC=example DC=local'
+            - LDAP-MAILCOW_LDAP_FILTER=(&(objectClass=inetOrgPerson)(mail=*))
+            - LDAP-MAILCOW_SOGO_LDAP_FILTER=objectClass='inetOrgPerson' AND mail=*
+            NEW:
+            - OPENLDAP-MAILCOW_IDENTIFIER=uid
     ```
 
 3. Configure environmental variables:
@@ -54,6 +68,8 @@ A python script periodically checks and creates new LDAP accounts and deactivate
     * **Optional** LDAP filters (see example above). SOGo uses special syntax, so you either have to **specify both or none**:
         * `LDAP-MAILCOW_LDAP_FILTER` - LDAP filter to apply, defaults to `(&(objectClass=user)(objectCategory=person))`
         * `LDAP-MAILCOW_SOGO_LDAP_FILTER` - LDAP filter to apply for SOGo ([special syntax](https://sogo.nu/files/docs/SOGoInstallationGuide.html#_authentication_using_ldap)), defaults to `objectClass='user' AND objectCategory='person'`
+    * `OPENLDAP-MAILCOW_IDENTIFIER` - **(OpenLDAP only)** The attribute used to bind users for authentication, e.g., `uid` (default if not set: `uid`)
+    * `LDAP-MAILCOW_AUTH_BIND_USERDN` - **(OpenLDAP only, Advanced, optional)** The template for the DN used for LDAP user authentication binding (e.g., `uid=%n,OU=Mail Users,DC=example,DC=local`). **This is not usually required**—by default, this value is automatically generated from your `OPENLDAP-MAILCOW_IDENTIFIER` and `LDAP-MAILCOW_LDAP_BASE_DN`. Only set this if you need to override the default behavior for special LDAP setups.
 
 4. Start additional container: `docker-compose up -d ldap-mailcow`
 5. Check logs `docker-compose logs ldap-mailcow`
