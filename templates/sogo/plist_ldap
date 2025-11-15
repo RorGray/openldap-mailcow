@@ -10,7 +10,7 @@
     <key>IDFieldName</key>
     <string>cn</string>
     <key>UIDFieldName</key>
-    <string>userPrincipalName</string>
+    <string>$identifier</string>
 
     <key>baseDN</key>
     <string>$ldap_base_dn</string>
@@ -21,7 +21,7 @@
     <string>$ldap_bind_dn_password</string>
     <key>bindFields</key>
     <array>
-        <string>userPrincipalName</string>
+        <string>$identifier</string>
     </array>
 
     <key>bindAsCurrentUser</key>
@@ -38,7 +38,7 @@
     <key>isAddressBook</key>
     <string>NO</string>
     <key>displayName</key>
-    <string>Active Directory</string>
+    <string>LDAP</string>
 
     <key>scope</key>
     <string>SUB</string>

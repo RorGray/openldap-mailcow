@@ -40,12 +40,12 @@ def sync():
 
     ldap_results = ldap_connector.search_s(config['LDAP_BASE_DN'], ldap.SCOPE_SUBTREE, 
                 config['LDAP_FILTER'], 
-                [config['IDENTIFIER'], 'cn', 'userAccountControl'])
+                [config['IDENTIFIER'], 'cn'])
 
     ldap_results = map(lambda x: (
         x[1][config['IDENTIFIER']][0].decode(),
         x[1]['cn'][0].decode(),
-        False if int(x[1]['userAccountControl'][0].decode()) & 0b10 else True), ldap_results)
+        True), ldap_results)
 
     filedb.session_time = datetime.datetime.now()
 
@@ -174,7 +174,8 @@ def read_sogo_plist_ldap_template():
         ldap_base_dn=config['LDAP_BASE_DN'],
         ldap_bind_dn=config['LDAP_BIND_DN'],
         ldap_bind_dn_password=config['LDAP_BIND_DN_PASSWORD'],
-        sogo_ldap_filter=config['SOGO_LDAP_FILTER']
+        sogo_ldap_filter=config['SOGO_LDAP_FILTER'],
+        identifier=config['IDENTIFIER']
         )
 
 def read_dovecot_extra_conf():
