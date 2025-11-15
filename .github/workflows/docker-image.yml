@@ -1,0 +1,55 @@
+name: openldap-mailcow
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout repo
+      - uses: actions/checkout@v4
+
+      # Log in to Docker Hub
+      - name: Log in to Docker Hub
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+      # Generate date-based tag (YYYYMMDD) and increment if exists
+      - name: Generate Docker image tag
+        id: tag
+        run: |
+          DATE=$(date +%Y%m%d)
+          IMAGE_NAME="rorgray/openldap-mailcow"
+          TAG=$DATE
+          
+          # Check existing tags on Docker Hub
+          EXISTING=$(curl -s "https://hub.docker.com/v2/repositories/${IMAGE_NAME}/tags/?page_size=100" | jq -r '.results[].name')
+          COUNT=1
+          while echo "$EXISTING" | grep -qx "$TAG"; do
+            TAG="${DATE}-${COUNT}"
+            COUNT=$((COUNT + 1))
+          done
+          
+          echo "IMAGE_TAG=$TAG" >> $GITHUB_ENV
+          echo "Generated Docker tag: $TAG"
+
+      # Build Docker image
+      - name: Build Docker image
+        run: docker build . --file Dockerfile.dev --tag rorgray/openldap-mailcow:${{ env.IMAGE_TAG }}
+
+      # Push Docker image with date-based tag
+      - name: Push Docker image
+        run: docker push rorgray/openldap-mailcow:${{ env.IMAGE_TAG }}
+
+      # Tag image as latest
+      - name: Tag Docker image as latest
+        run: docker tag rorgray/openldap-mailcow:${{ env.IMAGE_TAG }} rorgray/openldap-mailcow:latest
+
+      # Push latest tag
+      - name: Push latest Docker image
+        run: docker push rorgray/openldap-mailcow:latest
