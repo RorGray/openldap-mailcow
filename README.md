@@ -27,7 +27,7 @@ This fork extends the original `ldap-mailcow` with the following OpenLDAP-specif
 
 # ldap-mailcow
 
-Adds LDAP accounts to mailcow-dockerized and enables LDAP (e.g., Active Directory) authentication.
+Adds LDAP accounts to mailcow-dockerized and enables LDAP (e.g., Active Directory, OpenLDAP) authentication.
 
 * [How does it work](#how-does-it-work)
 * [Usage](#usage)
