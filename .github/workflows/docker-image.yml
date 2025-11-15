@@ -27,8 +27,8 @@ jobs:
           IMAGE_NAME="rorgray/openldap-mailcow"
           TAG=$DATE
           
-          # Check existing tags on Docker Hub
-          EXISTING=$(curl -s "https://hub.docker.com/v2/repositories/${IMAGE_NAME}/tags/?page_size=100" | jq -r '.results[].name')
+          # Check existing tags on Docker Hub (handle null response gracefully)
+          EXISTING=$(curl -s "https://hub.docker.com/v2/repositories/${IMAGE_NAME}/tags/?page_size=100" | jq -r '.results[]?.name // empty' 2>/dev/null || echo "")
           COUNT=1
           while echo "$EXISTING" | grep -qx "$TAG"; do
             TAG="${DATE}-${COUNT}"
@@ -40,7 +40,7 @@ jobs:
 
       # Build Docker image
       - name: Build Docker image
-        run: docker build . --file Dockerfile.dev --tag rorgray/openldap-mailcow:${{ env.IMAGE_TAG }}
+        run: docker build . --file Dockerfile --tag rorgray/openldap-mailcow:${{ env.IMAGE_TAG }}
 
       # Push Docker image with date-based tag
       - name: Push Docker image
