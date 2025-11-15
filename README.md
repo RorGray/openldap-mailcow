@@ -2,13 +2,28 @@
 
 This is a fork of [Programmierus/ldap-mailcow](https://github.com/Programmierus/ldap-mailcow) with modifications to support connections to OpenLDAP.
 
-**Additional Environment Variable Required**
+## New Features in This Fork
 
-In addition to the standard variables required by `ldap-mailcow`, please set the following:
+This fork extends the original `ldap-mailcow` with the following OpenLDAP-specific enhancements:
 
-- `OPENLDAP-MAILCOW_IDENTIFIER`  
-  - `uid`
-  - `mail`
+- **Configurable User Identifier Attribute** - Use `uid` or `mail` to identify users instead of the Active Directory-specific `userPrincipalName`
+- **OpenLDAP-Compatible Authentication** - Removed dependency on Active Directory's `userAccountControl` attribute; accounts are considered active if they exist in the directory
+- **Automatic DN Generation** - Auth bind DN is automatically constructed from your identifier attribute and base DN
+- **Flexible LDAP Schema Support** - Works with `inetOrgPerson` and other standard OpenLDAP object classes
+
+## Quick Start for OpenLDAP Users
+
+**Required Environment Variable:**
+
+- `OPENLDAP-MAILCOW_IDENTIFIER` - The LDAP attribute used to identify users (defaults to `uid` if not set)
+  - `uid` - Use the user ID attribute (recommended for most OpenLDAP setups)
+  - `mail` - Use the email address attribute
+
+**Optional Environment Variable:**
+
+- `OPENLDAP-MAILCOW_AUTH_BIND_USERDN` - Custom authentication DN template (auto-generated if not specified)
+
+---
 
 # ldap-mailcow
 
@@ -24,7 +39,9 @@ Adds LDAP accounts to mailcow-dockerized and enables LDAP (e.g., Active Director
 
 ## How does it work
 
-A python script periodically checks and creates new LDAP accounts and deactivates deleted and disabled ones with mailcow API. It also enables LDAP authentication in SOGo and dovecot.
+A python script periodically checks and creates new LDAP accounts and deactivates deleted ones with mailcow API. It also enables LDAP authentication in SOGo and dovecot.
+
+**Note:** For OpenLDAP, account activation status is determined by whether the account exists in the LDAP directory and matches the configured filter. If you need to disable accounts, remove them from the LDAP directory or exclude them using LDAP filters.
 
 ## Usage
 
@@ -52,7 +69,6 @@ A python script periodically checks and creates new LDAP accounts and deactivate
             - LDAP-MAILCOW_SYNC_INTERVAL=300
             - LDAP-MAILCOW_LDAP_FILTER=(&(objectClass=inetOrgPerson)(mail=*))
             - LDAP-MAILCOW_SOGO_LDAP_FILTER=objectClass='inetOrgPerson' AND mail=*
-            NEW:
             - OPENLDAP-MAILCOW_IDENTIFIER=uid
     ```
 
@@ -66,10 +82,10 @@ A python script periodically checks and creates new LDAP accounts and deactivate
     * `LDAP-MAILCOW_API_KEY` - mailcow API key (read/write)
     * `LDAP-MAILCOW_SYNC_INTERVAL` - interval in seconds between LDAP synchronizations
     * **Optional** LDAP filters (see example above). SOGo uses special syntax, so you either have to **specify both or none**:
-        * `LDAP-MAILCOW_LDAP_FILTER` - LDAP filter to apply, defaults to `(&(objectClass=user)(objectCategory=person))`
-        * `LDAP-MAILCOW_SOGO_LDAP_FILTER` - LDAP filter to apply for SOGo ([special syntax](https://sogo.nu/files/docs/SOGoInstallationGuide.html#_authentication_using_ldap)), defaults to `objectClass='user' AND objectCategory='person'`
-    * `OPENLDAP-MAILCOW_IDENTIFIER` - **(OpenLDAP only)** The attribute used to bind users for authentication, e.g., `uid` (default if not set: `uid`)
-    * `LDAP-MAILCOW_AUTH_BIND_USERDN` - **(OpenLDAP only, Advanced, optional)** The template for the DN used for LDAP user authentication binding (e.g., `uid=%n,OU=Mail Users,DC=example,DC=local`). **This is not usually required**—by default, this value is automatically generated from your `OPENLDAP-MAILCOW_IDENTIFIER` and `LDAP-MAILCOW_LDAP_BASE_DN`. Only set this if you need to override the default behavior for special LDAP setups.
+        * `LDAP-MAILCOW_LDAP_FILTER` - LDAP filter to apply, defaults to `(&(objectClass=user)(objectCategory=person))` for Active Directory, or use `(&(objectClass=inetOrgPerson)(mail=*))` for OpenLDAP
+        * `LDAP-MAILCOW_SOGO_LDAP_FILTER` - LDAP filter to apply for SOGo ([special syntax](https://sogo.nu/files/docs/SOGoInstallationGuide.html#_authentication_using_ldap)), defaults to `objectClass='user' AND objectCategory='person'` for Active Directory, or use `objectClass='inetOrgPerson' AND mail=*` for OpenLDAP
+    * `OPENLDAP-MAILCOW_IDENTIFIER` - **(Optional)** The LDAP attribute used to identify and authenticate users (default: `uid`). Common values: `uid` or `mail`
+    * `OPENLDAP-MAILCOW_AUTH_BIND_USERDN` - **(Advanced, optional)** Custom template for the DN used for LDAP user authentication binding (e.g., `uid=%n,ou=users,dc=example,dc=local`). **This is not usually required**—by default, this value is automatically generated from your `OPENLDAP-MAILCOW_IDENTIFIER` and `LDAP-MAILCOW_LDAP_BASE_DN`. Only set this if you need to override the default behavior for special LDAP directory structures.
 
 4. Start additional container: `docker-compose up -d ldap-mailcow`
 5. Check logs `docker-compose logs ldap-mailcow`
@@ -82,7 +98,7 @@ Container internally uses the following configuration templates:
 * SOGo: `/templates/sogo/plist_ldap`
 * dovecot: `/templates/dovecot/ldap/passdb.conf`
 
-These files have been tested against Active Directory running on Windows Server 2019 domain controller. If necessary, you can edit and remount them through docker volumes. Some documentation on these files can be found here: [dovecot](https://doc.dovecot.org/configuration_manual/authentication/ldap/), [SOGo](https://sogo.nu/files/docs/SOGoInstallationGuide.html#_authentication_using_ldap)
+If necessary, you can edit and remount them through docker volumes. Some documentation on these files can be found here: [dovecot](https://doc.dovecot.org/configuration_manual/authentication/ldap/), [SOGo](https://sogo.nu/files/docs/SOGoInstallationGuide.html#_authentication_using_ldap)
 
 ## Limitations
 
@@ -105,11 +121,3 @@ As a side-effect, It will also allow logging into mailcow UI using mailcow app p
 ### Two-way sync
 
 Users from your LDAP directory will be added (and deactivated if disabled/not found) to your mailcow database. Not vice-versa, and this is by design.
-
-## Customizations and Integration support
-
-External authentication (identity federation) is an enterprise feature [for mailcow](https://github.com/mailcow/mailcow-dockerized/issues/2316#issuecomment-491212921). That’s why I developed an external solution, and it is unlikely that it’ll be ever directly integrated into mailcow.
-
-I’ve created this tool because I needed it for my regular work. You are free to use it for commercial needs. Please understand that I can work on issues only if they fall within the scope of my current work interests or if I’ll have some available free time (never happened for many years). I’ll do my best to review submitted PRs ASAP, though.
-
-**You can always [contact me](mailto:programmierus@gmail.com) to help you with the integration or for custom modifications on a paid basis. My current hourly rate (ActivityWatch tracked) is 100,-€ with 3h minimum commitment.**
