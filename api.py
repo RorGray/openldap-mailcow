@@ -67,3 +67,21 @@ def check_user(email):
         sys.exit(f"API {url}: {rsp['type']} - {rsp['msg']}")
     
     return (True, bool(rsp['active_int']), rsp['name'])
+
+def get_domains():
+    url = f"{api_host}/api/v1/get/domain/all"
+    headers = {'X-API-Key': api_key, 'Content-type': 'application/json'}
+    req = requests.get(url, headers=headers)
+    rsp = req.json()
+    req.close()
+    
+    if not isinstance(rsp, list):
+        sys.exit("API get/domain/all: got response of a wrong type")
+    
+    # Extract domain names from the response
+    domains = set()
+    for domain_info in rsp:
+        if 'domain_name' in domain_info:
+            domains.add(domain_info['domain_name'])
+    
+    return domains

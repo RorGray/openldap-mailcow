@@ -47,9 +47,19 @@ def sync():
         x[1][config['NAME_ATTRIBUTE']][0].decode(),
         True), ldap_results)
 
+    # Get list of available domains from Mailcow
+    available_domains = api.get_domains()
+    logging.info(f"Found {len(available_domains)} domain(s) in Mailcow: {', '.join(sorted(available_domains))}")
+
     filedb.session_time = datetime.datetime.now()
 
     for (email, ldap_name, ldap_active) in ldap_results:
+        # Check if the domain exists in Mailcow
+        domain = email.split('@')[1] if '@' in email else None
+        if not domain or domain not in available_domains:
+            logging.warning(f"Skipping user {email}: domain '{domain}' not found in Mailcow. Please add the domain first.")
+            continue
+        
         (db_user_exists, db_user_active) = filedb.check_user(email)
         (api_user_exists, api_user_active, api_name) = api.check_user(email)
 

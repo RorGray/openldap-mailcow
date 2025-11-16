@@ -11,6 +11,7 @@ This fork extends the original `ldap-mailcow` with the following OpenLDAP-specif
 - **OpenLDAP-Compatible Authentication** - Removed dependency on Active Directory's `userAccountControl` attribute; accounts are considered active if they exist in the directory
 - **Automatic DN Generation** - Auth bind DN is automatically constructed from your identifier attribute and base DN
 - **Flexible LDAP Schema Support** - Works with `inetOrgPerson` and other standard OpenLDAP object classes
+- **Domain Validation** - Automatically checks if mail domains exist in Mailcow before creating users, preventing sync crashes and providing helpful warnings
 
 ## Quick Start for OpenLDAP Users
 
@@ -44,9 +45,19 @@ Adds LDAP accounts to mailcow-dockerized and enables LDAP (e.g., Active Director
 
 A python script periodically checks and creates new LDAP accounts and deactivates deleted ones with mailcow API. It also enables LDAP authentication in SOGo and dovecot.
 
-**Note:** For OpenLDAP, account activation status is determined by whether the account exists in the LDAP directory and matches the configured filter. If you need to disable accounts, remove them from the LDAP directory or exclude them using LDAP filters.
+**Important Notes:**
+- For OpenLDAP, account activation status is determined by whether the account exists in the LDAP directory and matches the configured filter. If you need to disable accounts, remove them from the LDAP directory or exclude them using LDAP filters.
+- **Mail domains must be created in Mailcow before users can be synced.** The script will automatically skip users whose domains don't exist and log a warning message.
 
 ## Usage
+
+### Prerequisites
+
+Before starting the LDAP sync:
+
+1. **Add mail domains in Mailcow**: Log into your Mailcow admin panel and add all domains that your LDAP users belong to (e.g., `example.com`, `company.org`). The sync will skip users whose domains don't exist.
+
+### Installation
 
 1. Create a `data/ldap` directory. SQLite database for synchronization will be stored there.
 2. Extend your `docker-compose.override.yml` with an additional container:
@@ -75,7 +86,7 @@ A python script periodically checks and creates new LDAP accounts and deactivate
             - OPENLDAP-MAILCOW_IDENTIFIER=uid
     ```
 
-3. Configure environmental variables:
+3. Configure environment variables:
 
     * `LDAP-MAILCOW_LDAP_URI` - LDAP (e.g., Active Directory) URI (must be reachable from within the container). The URIs are in syntax `protocol://host:port`. For example `ldap://localhost` or `ldaps://secure.domain.org`
     * `LDAP-MAILCOW_LDAP_BASE_DN` - base DN where user accounts can be found
