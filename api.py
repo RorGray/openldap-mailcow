@@ -50,13 +50,13 @@ def generate_secure_password(length=64):
     random.shuffle(password_parts)
     return ''.join(password_parts)
 
-def add_user(email, name, active):
+def add_user(email, name, active, authsource='ldap'):
     password = generate_secure_password()
     json_data = {
         'local_part':email.split('@')[0],
         'domain':email.split('@')[1],
         'name':name,
-        'authsource':'ldap',
+        'authsource':authsource,
         'password':password,
         'password2':password,
         "active": 1 if active else 0

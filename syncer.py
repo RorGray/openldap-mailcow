@@ -72,9 +72,9 @@ def sync():
             unchanged = False
 
         if not api_user_exists:
-            api.add_user(email, ldap_name, ldap_active)
+            api.add_user(email, ldap_name, ldap_active, config['AUTHSOURCE'])
             (api_user_exists, api_user_active, api_name) = (True, ldap_active, ldap_name)
-            logging.info (f"Added Mailcow user: {email} (Active: {ldap_active})")
+            logging.info (f"Added Mailcow user: {email} (Active: {ldap_active}, AuthSource: {config['AUTHSOURCE']})")
             unchanged = False
 
         if db_user_active != ldap_active:
@@ -166,6 +166,9 @@ def read_config():
     # Configure LDAP attributes
     config['EMAIL_ATTRIBUTE'] = os.environ.get('OPENLDAP-MAILCOW_EMAIL_ATTRIBUTE', 'mail')
     config['NAME_ATTRIBUTE'] = os.environ.get('OPENLDAP-MAILCOW_NAME_ATTRIBUTE', 'cn')
+    
+    # Configure authentication source (for SSO integration like Authentik)
+    config['AUTHSOURCE'] = os.environ.get('OPENLDAP-MAILCOW_AUTHSOURCE', 'ldap')
 
     return config
 
