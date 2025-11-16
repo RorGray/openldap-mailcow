@@ -11,6 +11,7 @@ This fork extends the original `ldap-mailcow` with the following OpenLDAP-specif
 - **OpenLDAP-Compatible Authentication** - Removed dependency on Active Directory's `userAccountControl` attribute; accounts are considered active if they exist in the directory
 - **Automatic DN Generation** - Auth bind DN is automatically constructed from your identifier attribute and base DN
 - **Flexible LDAP Schema Support** - Works with `inetOrgPerson` and other standard OpenLDAP object classes
+- **Configurable Dovecot Authentication Method** - Supports password comparison mode for external IMAP/SMTP logins (where CN is not available for auth_bind), with configurable password schemes (CRYPT, SHA, SSHA, MD5, PLAIN)
 - **Domain Validation** - Automatically checks if mail domains exist in Mailcow before creating users, preventing sync crashes and providing helpful warnings
 - **Enhanced Password Generation** - Generates secure 64-character passwords that meet all Mailcow password requirements, preventing user creation failures
 - **SSO Integration Support** - Optional support for Single Sign-On authentication via Generic-OIDC protocol (tested with Authentik, theoretically compatible with Keycloak, Auth0, and other OIDC providers), enabling MFA and centralized authentication
@@ -24,6 +25,9 @@ This fork extends the original `ldap-mailcow` with the following OpenLDAP-specif
 - `OPENLDAP-MAILCOW_IDENTIFIER` - The LDAP attribute used to identify users for authentication (default: `mail`)
 - `OPENLDAP-MAILCOW_EMAIL_ATTRIBUTE` - LDAP attribute containing the email address (default: `mail`)
 - `OPENLDAP-MAILCOW_NAME_ATTRIBUTE` - LDAP attribute containing the display name (default: `cn`)
+- `OPENLDAP-MAILCOW_PASSWORD_ATTRIBUTE` - LDAP attribute containing the password (default: `userPassword`)
+- `OPENLDAP-MAILCOW_AUTH_BIND` - Dovecot authentication method: `yes` for bind authentication, `no` for password comparison (default: `no`)
+- `OPENLDAP-MAILCOW_PASSWORD_SCHEME` - Password hashing scheme used in LDAP (default: `CRYPT`)
 - `OPENLDAP-MAILCOW_AUTHSOURCE` - Authentication source for created mailboxes (default: `ldap`, use `generic-oidc` for SSO providers)
 - `OPENLDAP-MAILCOW_AUTH_BIND_USERDN` - Custom authentication DN template (auto-generated if not specified)
 
@@ -48,6 +52,7 @@ A python script periodically checks and creates new LDAP accounts and deactivate
 **Important Notes:**
 - For OpenLDAP, account activation status is determined by whether the account exists in the LDAP directory and matches the configured filter. If you need to disable accounts, remove them from the LDAP directory or exclude them using LDAP filters.
 - **Mail domains must be created in Mailcow before users can be synced.** The script will automatically skip users whose domains don't exist and log a warning message.
+- **External IMAP/SMTP Authentication:** By default, `OPENLDAP-MAILCOW_AUTH_BIND` is set to `no` (password comparison mode) because external mail clients connecting via IMAP/SMTP only send email addresses without CN information. This allows Dovecot to fetch the password from LDAP and validate it locally, ensuring compatibility with all mail clients.
 
 ## Usage
 
@@ -101,6 +106,9 @@ Before starting the LDAP sync:
     * `OPENLDAP-MAILCOW_IDENTIFIER` - **(Optional)** The LDAP attribute used to identify and authenticate users (default: `mail`). Uses the full email address for authentication.
     * `OPENLDAP-MAILCOW_EMAIL_ATTRIBUTE` - **(Optional)** The LDAP attribute containing the user's email address (default: `mail`). This is used by mailcow for account creation.
     * `OPENLDAP-MAILCOW_NAME_ATTRIBUTE` - **(Optional)** The LDAP attribute containing the user's display name (default: `cn`). This is shown as the user's name in mailcow.
+    * `OPENLDAP-MAILCOW_PASSWORD_ATTRIBUTE` - **(Optional)** The LDAP attribute containing the user's password (default: `userPassword`). This is used by Dovecot for authentication.
+    * `OPENLDAP-MAILCOW_AUTH_BIND` - **(Optional)** Dovecot authentication method (default: `no`). Set to `yes` to use bind authentication (user credentials are sent to LDAP server for verification), or `no` to fetch password from LDAP and compare locally.
+    * `OPENLDAP-MAILCOW_PASSWORD_SCHEME` - **(Optional)** Password hashing scheme used in your LDAP directory (default: `CRYPT`). Common values: `CRYPT`, `SHA`, `SSHA`, `MD5`, `PLAIN`. Must match the scheme used in your LDAP's `userPassword` attribute.
     * `OPENLDAP-MAILCOW_AUTHSOURCE` - **(Optional)** Authentication source for created mailboxes (default: `ldap`). Set to `generic-oidc` for SSO provider integration. See [Login with SSO Provider](#login-with-sso-provider-optional) for details.
     * `OPENLDAP-MAILCOW_AUTH_BIND_USERDN` - **(Advanced, optional)** Custom template for the DN used for LDAP user authentication binding (e.g., `mail=%n,ou=users,dc=example,dc=local`). **This is not usually required**—by default, this value is automatically generated from your `OPENLDAP-MAILCOW_IDENTIFIER` and `LDAP-MAILCOW_LDAP_BASE_DN`. Only set this if you need to override the default behavior for special LDAP directory structures.
 

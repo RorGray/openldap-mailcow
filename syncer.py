@@ -166,6 +166,11 @@ def read_config():
     # Configure LDAP attributes
     config['EMAIL_ATTRIBUTE'] = os.environ.get('OPENLDAP-MAILCOW_EMAIL_ATTRIBUTE', 'mail')
     config['NAME_ATTRIBUTE'] = os.environ.get('OPENLDAP-MAILCOW_NAME_ATTRIBUTE', 'cn')
+    config['PASSWORD_ATTRIBUTE'] = os.environ.get('OPENLDAP-MAILCOW_PASSWORD_ATTRIBUTE', 'userPassword')
+    
+    # Configure Dovecot authentication settings
+    config['AUTH_BIND'] = os.environ.get('OPENLDAP-MAILCOW_AUTH_BIND', 'no')
+    config['PASSWORD_SCHEME'] = os.environ.get('OPENLDAP-MAILCOW_PASSWORD_SCHEME', 'CRYPT')
     
     # Configure authentication source (for SSO integration like Authentik)
     config['AUTHSOURCE'] = os.environ.get('OPENLDAP-MAILCOW_AUTHSOURCE', 'ldap')
@@ -181,7 +186,10 @@ def read_dovecot_passdb_conf_template():
         ldap_base_dn=config['LDAP_BASE_DN'],
         ldap_bind_dn=config['LDAP_BIND_DN'],
         ldap_bind_dn_password=config['LDAP_BIND_DN_PASSWORD'],
-        auth_bind_userdn=config['AUTH_BIND_USERDN']
+        auth_bind=config['AUTH_BIND'],
+        email_attribute=config['EMAIL_ATTRIBUTE'],
+        password_attribute=config['PASSWORD_ATTRIBUTE'],
+        password_scheme=config['PASSWORD_SCHEME']
         )
 
 def read_sogo_plist_ldap_template():
