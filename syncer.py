@@ -40,11 +40,11 @@ def sync():
 
     ldap_results = ldap_connector.search_s(config['LDAP_BASE_DN'], ldap.SCOPE_SUBTREE, 
                 config['LDAP_FILTER'], 
-                [config['IDENTIFIER'], 'cn'])
+                [config['IDENTIFIER'], config['NAME_ATTRIBUTE'], config['EMAIL_ATTRIBUTE']])
 
     ldap_results = map(lambda x: (
-        x[1][config['IDENTIFIER']][0].decode(),
-        x[1]['cn'][0].decode(),
+        x[1][config['EMAIL_ATTRIBUTE']][0].decode(),
+        x[1][config['NAME_ATTRIBUTE']][0].decode(),
         True), ldap_results)
 
     filedb.session_time = datetime.datetime.now()
@@ -152,6 +152,10 @@ def read_config():
     identifier = os.environ.get('OPENLDAP-MAILCOW_IDENTIFIER', 'uid')
     config['IDENTIFIER'] = identifier
     config['AUTH_BIND_USERDN'] = os.environ.get('OPENLDAP-MAILCOW_AUTH_BIND_USERDN', f'{identifier}=%n,{config["LDAP_BASE_DN"]}')
+    
+    # Configure LDAP attributes
+    config['EMAIL_ATTRIBUTE'] = os.environ.get('OPENLDAP-MAILCOW_EMAIL_ATTRIBUTE', 'mail')
+    config['NAME_ATTRIBUTE'] = os.environ.get('OPENLDAP-MAILCOW_NAME_ATTRIBUTE', 'cn')
 
     return config
 

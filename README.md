@@ -7,6 +7,7 @@ This is a fork of [Programmierus/ldap-mailcow](https://github.com/Programmierus/
 This fork extends the original `ldap-mailcow` with the following OpenLDAP-specific enhancements:
 
 - **Configurable User Identifier Attribute** - Use `uid` or `mail` to identify users instead of the Active Directory-specific `userPrincipalName`
+- **Configurable Email and Name Attributes** - Specify which LDAP attributes contain email addresses and display names
 - **OpenLDAP-Compatible Authentication** - Removed dependency on Active Directory's `userAccountControl` attribute; accounts are considered active if they exist in the directory
 - **Automatic DN Generation** - Auth bind DN is automatically constructed from your identifier attribute and base DN
 - **Flexible LDAP Schema Support** - Works with `inetOrgPerson` and other standard OpenLDAP object classes
@@ -15,13 +16,15 @@ This fork extends the original `ldap-mailcow` with the following OpenLDAP-specif
 
 **Required Environment Variable:**
 
-- `OPENLDAP-MAILCOW_IDENTIFIER` - The LDAP attribute used to identify users (defaults to `uid` if not set)
+- `OPENLDAP-MAILCOW_IDENTIFIER` - The LDAP attribute used to identify users for authentication (default: `uid`)
   - `uid` - Use the user ID attribute (recommended for most OpenLDAP setups)
   - `mail` - Use the email address attribute
 
-**Optional Environment Variable:**
+**Optional Environment Variables:**
 
 - `OPENLDAP-MAILCOW_AUTH_BIND_USERDN` - Custom authentication DN template (auto-generated if not specified)
+- `OPENLDAP-MAILCOW_EMAIL_ATTRIBUTE` - LDAP attribute containing the email address (default: `mail`)
+- `OPENLDAP-MAILCOW_NAME_ATTRIBUTE` - LDAP attribute containing the display name (default: `cn`)
 
 ---
 
@@ -82,9 +85,11 @@ A python script periodically checks and creates new LDAP accounts and deactivate
     * `LDAP-MAILCOW_API_KEY` - mailcow API key (read/write)
     * `LDAP-MAILCOW_SYNC_INTERVAL` - interval in seconds between LDAP synchronizations
     * **Optional** LDAP filters (see example above). SOGo uses special syntax, so you either have to **specify both or none**:
-        * `LDAP-MAILCOW_LDAP_FILTER` - LDAP filter to apply, defaults to `(&(objectClass=user)(objectCategory=person))` for Active Directory, or use `(&(objectClass=inetOrgPerson)(mail=*))` for OpenLDAP
-        * `LDAP-MAILCOW_SOGO_LDAP_FILTER` - LDAP filter to apply for SOGo ([special syntax](https://sogo.nu/files/docs/SOGoInstallationGuide.html#_authentication_using_ldap)), defaults to `objectClass='user' AND objectCategory='person'` for Active Directory, or use `objectClass='inetOrgPerson' AND mail=*` for OpenLDAP
+        * `LDAP-MAILCOW_LDAP_FILTER` - LDAP filter to apply, defaults to `(&(objectClass=user)(objectCategory=person))` for Active Directory. **For OpenLDAP, use `(&(objectClass=inetOrgPerson)(mail=*))`** to ensure only users with email addresses are synced.
+        * `LDAP-MAILCOW_SOGO_LDAP_FILTER` - LDAP filter to apply for SOGo ([special syntax](https://sogo.nu/files/docs/SOGoInstallationGuide.html#_authentication_using_ldap)), defaults to `objectClass='user' AND objectCategory='person'` for Active Directory. **For OpenLDAP, use `objectClass='inetOrgPerson' AND mail=*`**
     * `OPENLDAP-MAILCOW_IDENTIFIER` - **(Optional)** The LDAP attribute used to identify and authenticate users (default: `uid`). Common values: `uid` or `mail`
+    * `OPENLDAP-MAILCOW_EMAIL_ATTRIBUTE` - **(Optional)** The LDAP attribute containing the user's email address (default: `mail`). This is used by mailcow for account creation.
+    * `OPENLDAP-MAILCOW_NAME_ATTRIBUTE` - **(Optional)** The LDAP attribute containing the user's display name (default: `cn`). This is shown as the user's name in mailcow.
     * `OPENLDAP-MAILCOW_AUTH_BIND_USERDN` - **(Advanced, optional)** Custom template for the DN used for LDAP user authentication binding (e.g., `uid=%n,ou=users,dc=example,dc=local`). **This is not usually required**—by default, this value is automatically generated from your `OPENLDAP-MAILCOW_IDENTIFIER` and `LDAP-MAILCOW_LDAP_BASE_DN`. Only set this if you need to override the default behavior for special LDAP directory structures.
 
 4. Start additional container: `docker-compose up -d ldap-mailcow`
