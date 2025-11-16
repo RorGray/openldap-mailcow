@@ -18,12 +18,45 @@ def __post_request(url, json_data):
     if rsp['type'] != 'success':
         sys.exit(f"API {url}: {rsp['type']} - {rsp['msg']}")
 
+def generate_secure_password(length=64):
+    """
+    Generate a secure password that fulfills all Mailcow password requirements
+    and avoids a bad password error on mailbox creation. Specifically:
+    - At least one lowercase letter
+    - At least one uppercase letter
+    - At least one digit
+    - At least one special character
+    - Configurable length (default: 64 characters)
+
+    Returns:
+        str: A randomly generated secure password
+    """
+    special_chars = '!@#$%^&*()_+-=[]{}|;:,.<>?'
+
+    # Ensure at least one of each required character type for Mailcow compatibility
+    password_parts = [
+        random.choice(string.ascii_lowercase),
+        random.choice(string.ascii_uppercase),
+        random.choice(string.digits),
+        random.choice(special_chars)
+    ]
+
+    # Fill the remainder of the password with random characters from all sets
+    all_chars = string.ascii_letters + string.digits + special_chars
+    remaining_length = length - len(password_parts)
+    password_parts.extend(random.choices(all_chars, k=remaining_length))
+
+    # Shuffle to prevent predictable order
+    random.shuffle(password_parts)
+    return ''.join(password_parts)
+
 def add_user(email, name, active):
-    password = ''.join(random.choices(string.ascii_letters + string.digits, k=20))
+    password = generate_secure_password()
     json_data = {
         'local_part':email.split('@')[0],
         'domain':email.split('@')[1],
         'name':name,
+        'authsource':'ldap',
         'password':password,
         'password2':password,
         "active": 1 if active else 0

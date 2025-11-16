@@ -159,7 +159,7 @@ def read_config():
     config['SOGO_LDAP_FILTER'] = os.environ['LDAP-MAILCOW_SOGO_LDAP_FILTER'] if 'LDAP-MAILCOW_SOGO_LDAP_FILTER' in os.environ else "objectClass='user' AND objectCategory='person'"
     
     # Build AUTH_BIND_USERDN from IDENTIFIER and BASE_DN
-    identifier = os.environ.get('OPENLDAP-MAILCOW_IDENTIFIER', 'uid')
+    identifier = os.environ.get('OPENLDAP-MAILCOW_IDENTIFIER', 'mail')
     config['IDENTIFIER'] = identifier
     config['AUTH_BIND_USERDN'] = os.environ.get('OPENLDAP-MAILCOW_AUTH_BIND_USERDN', f'{identifier}=%n,{config["LDAP_BASE_DN"]}')
     

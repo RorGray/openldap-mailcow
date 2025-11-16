@@ -6,23 +6,21 @@ This is a fork of [Programmierus/ldap-mailcow](https://github.com/Programmierus/
 
 This fork extends the original `ldap-mailcow` with the following OpenLDAP-specific enhancements:
 
-- **Configurable User Identifier Attribute** - Use `uid` or `mail` to identify users instead of the Active Directory-specific `userPrincipalName`
+- **Configurable User Identifier Attribute** - Use `mail` to identify users instead of the Active Directory-specific `userPrincipalName`
 - **Configurable Email and Name Attributes** - Specify which LDAP attributes contain email addresses and display names
 - **OpenLDAP-Compatible Authentication** - Removed dependency on Active Directory's `userAccountControl` attribute; accounts are considered active if they exist in the directory
 - **Automatic DN Generation** - Auth bind DN is automatically constructed from your identifier attribute and base DN
 - **Flexible LDAP Schema Support** - Works with `inetOrgPerson` and other standard OpenLDAP object classes
 - **Domain Validation** - Automatically checks if mail domains exist in Mailcow before creating users, preventing sync crashes and providing helpful warnings
+- **Enhanced Password Generation** - Generates secure 64-character passwords that meet all Mailcow password requirements, preventing user creation failures
 
 ## Quick Start for OpenLDAP Users
 
-**Required Environment Variable:**
-
-- `OPENLDAP-MAILCOW_IDENTIFIER` - The LDAP attribute used to identify users for authentication (default: `uid`)
-  - `uid` - Use the user ID attribute (recommended for most OpenLDAP setups)
-  - `mail` - Use the email address attribute
-
 **Optional Environment Variables:**
 
+> **Note:** For most OpenLDAP setups with standard `inetOrgPerson` schema, no environment variables are required. All values default to work with `mail` attribute for authentication.
+
+- `OPENLDAP-MAILCOW_IDENTIFIER` - The LDAP attribute used to identify users for authentication (default: `mail`)
 - `OPENLDAP-MAILCOW_AUTH_BIND_USERDN` - Custom authentication DN template (auto-generated if not specified)
 - `OPENLDAP-MAILCOW_EMAIL_ATTRIBUTE` - LDAP attribute containing the email address (default: `mail`)
 - `OPENLDAP-MAILCOW_NAME_ATTRIBUTE` - LDAP attribute containing the display name (default: `cn`)
@@ -75,15 +73,14 @@ Before starting the LDAP sync:
             - ./data/conf/sogo:/conf/sogo:rw
         environment:
             - LDAP-MAILCOW_LDAP_URI=ldap://openldap
-            - LDAP-MAILCOW_LDAP_BASE_DN=OU=Mail Users,DC=example,DC=local
-            - LDAP-MAILCOW_LDAP_BIND_DN=CN=Bind DN,CN=Users,DC=example,DC=local
+            - LDAP-MAILCOW_LDAP_BASE_DN=ou=users,dc=example,dc=local
+            - LDAP-MAILCOW_LDAP_BIND_DN=cn=admin,dc=example,dc=local
             - LDAP-MAILCOW_LDAP_BIND_DN_PASSWORD=BindPassword
             - LDAP-MAILCOW_API_HOST=https://mailcow.example.local
             - LDAP-MAILCOW_API_KEY=XXXXXX-XXXXXX-XXXXXX-XXXXXX-XXXXXX
             - LDAP-MAILCOW_SYNC_INTERVAL=300
             - LDAP-MAILCOW_LDAP_FILTER=(&(objectClass=inetOrgPerson)(mail=*))
             - LDAP-MAILCOW_SOGO_LDAP_FILTER=objectClass='inetOrgPerson' AND mail=*
-            - OPENLDAP-MAILCOW_IDENTIFIER=uid
     ```
 
 3. Configure environment variables:
@@ -96,12 +93,13 @@ Before starting the LDAP sync:
     * `LDAP-MAILCOW_API_KEY` - mailcow API key (read/write)
     * `LDAP-MAILCOW_SYNC_INTERVAL` - interval in seconds between LDAP synchronizations
     * **Optional** LDAP filters (see example above). SOGo uses special syntax, so you either have to **specify both or none**:
-        * `LDAP-MAILCOW_LDAP_FILTER` - LDAP filter to apply, defaults to `(&(objectClass=user)(objectCategory=person))` for Active Directory. **For OpenLDAP, use `(&(objectClass=inetOrgPerson)(mail=*))`** to ensure only users with email addresses are synced.
+        * `LDAP-MAILCOW_LDAP_FILTER` - LDAP filter to apply, defaults to `(&(objectClass=user)(objectCategory=person))` for Active Directory. 
+        **For OpenLDAP, use `(&(objectClass=inetOrgPerson)(mail=*))`** to ensure only users with email addresses are synced.
         * `LDAP-MAILCOW_SOGO_LDAP_FILTER` - LDAP filter to apply for SOGo ([special syntax](https://sogo.nu/files/docs/SOGoInstallationGuide.html#_authentication_using_ldap)), defaults to `objectClass='user' AND objectCategory='person'` for Active Directory. **For OpenLDAP, use `objectClass='inetOrgPerson' AND mail=*`**
-    * `OPENLDAP-MAILCOW_IDENTIFIER` - **(Optional)** The LDAP attribute used to identify and authenticate users (default: `uid`). Common values: `uid` or `mail`
+    * `OPENLDAP-MAILCOW_IDENTIFIER` - **(Optional)** The LDAP attribute used to identify and authenticate users (default: `mail`). Uses the full email address for authentication.
     * `OPENLDAP-MAILCOW_EMAIL_ATTRIBUTE` - **(Optional)** The LDAP attribute containing the user's email address (default: `mail`). This is used by mailcow for account creation.
     * `OPENLDAP-MAILCOW_NAME_ATTRIBUTE` - **(Optional)** The LDAP attribute containing the user's display name (default: `cn`). This is shown as the user's name in mailcow.
-    * `OPENLDAP-MAILCOW_AUTH_BIND_USERDN` - **(Advanced, optional)** Custom template for the DN used for LDAP user authentication binding (e.g., `uid=%n,ou=users,dc=example,dc=local`). **This is not usually required**—by default, this value is automatically generated from your `OPENLDAP-MAILCOW_IDENTIFIER` and `LDAP-MAILCOW_LDAP_BASE_DN`. Only set this if you need to override the default behavior for special LDAP directory structures.
+    * `OPENLDAP-MAILCOW_AUTH_BIND_USERDN` - **(Advanced, optional)** Custom template for the DN used for LDAP user authentication binding (e.g., `mail=%n,ou=users,dc=example,dc=local`). **This is not usually required**—by default, this value is automatically generated from your `OPENLDAP-MAILCOW_IDENTIFIER` and `LDAP-MAILCOW_LDAP_BASE_DN`. Only set this if you need to override the default behavior for special LDAP directory structures.
 
 4. Start additional container: `docker-compose up -d ldap-mailcow`
 5. Check logs `docker-compose logs ldap-mailcow`
@@ -118,21 +116,41 @@ If necessary, you can edit and remount them through docker volumes. Some documen
 
 ## Limitations
 
-### WebUI and EAS authentication
+### WebUI and SOGo Authentication
 
-This tool enables authentication for Dovecot and SOGo, which means you will be able to log into POP3, SMTP, IMAP, and SOGo Web-Interface. **You will not be able to log into mailcow UI or EAS using your LDAP credentials by default.**
+This tool automatically configures LDAP authentication for **Dovecot** (IMAP/SMTP/POP3). However, to enable LDAP login for **Mailcow Web UI** and **SOGo webmail**, you need to configure the Identity Provider in Mailcow's admin interface.
 
-As a workaround, you can hook IMAP authentication directly to mailcow by adding the following code above [this line](https://github.com/mailcow/mailcow-dockerized/blob/48b74d77a0c39bcb3399ce6603e1ad424f01fc3e/data/web/inc/functions.inc.php#L608):
+#### Prerequisites
 
-```php
-    $mbox = imap_open ("{dovecot:993/imap/ssl/novalidate-cert}INBOX", $user, $pass);
-    if ($mbox != false) {
-        imap_close($mbox);
-        return "user";
-    }
-```
+Ensure your LDAP server is accessible from the Mailcow Docker network.
 
-As a side-effect, It will also allow logging into mailcow UI using mailcow app passwords (since they are valid for IMAP). **It is not a supported solution with mailcow and has to be done only at your own risk!**
+#### Configuration Steps
+
+1. Log into the **Mailcow Admin Interface**
+2. Navigate to: **System → Configuration → Access → Identity Provider**
+3. Configure the following LDAP settings:
+
+| Field | Value |
+|-------|-------|
+| **Identity Provider** | LDAP |
+| **Host** | `openldap` |
+| **Port** | `389` |
+| **Base DN** | `ou=users,dc=example,dc=local` |
+| **Username Field** | `mail` |
+| **Filter** | `(&(objectClass=inetOrgPerson)(mail=*))` |
+| **Attribute Field** | `uid` |
+| **Bind DN** | `cn=admin,dc=example,dc=local` |
+| **Bind Password** | `[BindPassword]` |
+
+4. Click **Save** and restart the affected services:
+   ```bash
+   docker-compose restart sogo-mailcow dovecot-mailcow
+   ```
+
+After this configuration, users can log into:
+- ✅ **Mailcow Web UI** - using their email address and LDAP password
+- ✅ **SOGo Webmail** - using their email address and LDAP password
+- ✅ **Email clients** (IMAP/SMTP) - using their email address and LDAP password
 
 ### Two-way sync
 
