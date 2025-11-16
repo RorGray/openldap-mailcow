@@ -161,7 +161,7 @@ def read_config():
     # Build AUTH_BIND_USERDN from IDENTIFIER and BASE_DN
     identifier = os.environ.get('OPENLDAP-MAILCOW_IDENTIFIER', 'mail')
     config['IDENTIFIER'] = identifier
-    config['AUTH_BIND_USERDN'] = os.environ.get('OPENLDAP-MAILCOW_AUTH_BIND_USERDN', f'{identifier}=%n,{config["LDAP_BASE_DN"]}')
+    config['AUTH_BIND_USERDN'] = os.environ.get('OPENLDAP-MAILCOW_AUTH_BIND_USERDN', f'{identifier}=%u,{config["LDAP_BASE_DN"]}')
     
     # Configure LDAP attributes
     config['EMAIL_ATTRIBUTE'] = os.environ.get('OPENLDAP-MAILCOW_EMAIL_ATTRIBUTE', 'mail')
@@ -179,6 +179,8 @@ def read_dovecot_passdb_conf_template():
     return data.substitute(
         ldap_uri=config['LDAP_URI'], 
         ldap_base_dn=config['LDAP_BASE_DN'],
+        ldap_bind_dn=config['LDAP_BIND_DN'],
+        ldap_bind_dn_password=config['LDAP_BIND_DN_PASSWORD'],
         auth_bind_userdn=config['AUTH_BIND_USERDN']
         )
 
