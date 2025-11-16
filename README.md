@@ -24,7 +24,7 @@ This fork extends the original `ldap-mailcow` with the following OpenLDAP-specif
 - `OPENLDAP-MAILCOW_IDENTIFIER` - The LDAP attribute used to identify users for authentication (default: `mail`)
 - `OPENLDAP-MAILCOW_EMAIL_ATTRIBUTE` - LDAP attribute containing the email address (default: `mail`)
 - `OPENLDAP-MAILCOW_NAME_ATTRIBUTE` - LDAP attribute containing the display name (default: `cn`)
-- `OPENLDAP-MAILCOW_AUTHSOURCE` - Authentication source for created mailboxes (default: `ldap`, use `Generic-OIDC` for SSO providers)
+- `OPENLDAP-MAILCOW_AUTHSOURCE` - Authentication source for created mailboxes (default: `ldap`, use `generic-oidc` for SSO providers)
 - `OPENLDAP-MAILCOW_AUTH_BIND_USERDN` - Custom authentication DN template (auto-generated if not specified)
 
 ---
@@ -101,7 +101,7 @@ Before starting the LDAP sync:
     * `OPENLDAP-MAILCOW_IDENTIFIER` - **(Optional)** The LDAP attribute used to identify and authenticate users (default: `mail`). Uses the full email address for authentication.
     * `OPENLDAP-MAILCOW_EMAIL_ATTRIBUTE` - **(Optional)** The LDAP attribute containing the user's email address (default: `mail`). This is used by mailcow for account creation.
     * `OPENLDAP-MAILCOW_NAME_ATTRIBUTE` - **(Optional)** The LDAP attribute containing the user's display name (default: `cn`). This is shown as the user's name in mailcow.
-    * `OPENLDAP-MAILCOW_AUTHSOURCE` - **(Optional)** Authentication source for created mailboxes (default: `ldap`). Set to `Generic-OIDC` for SSO provider integration. See [Login with SSO Provider](#login-with-sso-provider-optional) for details.
+    * `OPENLDAP-MAILCOW_AUTHSOURCE` - **(Optional)** Authentication source for created mailboxes (default: `ldap`). Set to `generic-oidc` for SSO provider integration. See [Login with SSO Provider](#login-with-sso-provider-optional) for details.
     * `OPENLDAP-MAILCOW_AUTH_BIND_USERDN` - **(Advanced, optional)** Custom template for the DN used for LDAP user authentication binding (e.g., `mail=%n,ou=users,dc=example,dc=local`). **This is not usually required**—by default, this value is automatically generated from your `OPENLDAP-MAILCOW_IDENTIFIER` and `LDAP-MAILCOW_LDAP_BASE_DN`. Only set this if you need to override the default behavior for special LDAP directory structures.
 
 4. Start additional container: `docker-compose up -d ldap-mailcow`
@@ -175,7 +175,7 @@ If your LDAP users are synced with an SSO provider supporting Generic-OIDC, you 
 
    ```yaml
    environment:
-     - OPENLDAP-MAILCOW_AUTHSOURCE=Generic-OIDC
+     - OPENLDAP-MAILCOW_AUTHSOURCE=generic-oidc
    ```
 
 2. **Configure your SSO Provider:**
