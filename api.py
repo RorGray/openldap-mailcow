@@ -1,6 +1,7 @@
 import random, string, sys
 import requests
 import logging
+import socket
 
 def __post_request(url, json_data):
     api_url = f"{api_host}/{url}"
@@ -11,17 +12,20 @@ def __post_request(url, json_data):
         
         # Check HTTP status code first
         if req.status_code == 401:
-            raise Exception(f"API authentication failed (401 Unauthorized). Please check your API_KEY.")
+            source_ip = __get_source_ip()
+            raise Exception(f"API authentication failed (401 Unauthorized). URI: {api_url} | Source IP: {source_ip} | Please check your API_KEY.")
         elif req.status_code == 403:
-            raise Exception(f"API access forbidden (403 Forbidden). Please check that your IP address is allowed to access the Mailcow API and has read-write permissions.")
+            source_ip = __get_source_ip()
+            raise Exception(f"API access forbidden (403 Forbidden). URI: {api_url} | Source IP: {source_ip} | Please check that IP {source_ip} is allowed to access the Mailcow API and has read-write permissions.")
         elif req.status_code >= 400:
-            raise Exception(f"API request failed with HTTP {req.status_code}: {req.text[:200]}")
+            raise Exception(f"API request failed with HTTP {req.status_code}. URI: {api_url} | Response: {req.text[:200]}")
         
         # Try to parse JSON
         try:
             rsp = req.json()
         except requests.exceptions.JSONDecodeError as e:
-            raise Exception(f"API returned non-JSON response (status {req.status_code}). This often means API access is denied or IP is not allowed. Response content: {req.text[:200]}")
+            source_ip = __get_source_ip()
+            raise Exception(f"API returned non-JSON response (status {req.status_code}). URI: {api_url} | Source IP: {source_ip} | This often means API access is denied or IP is not allowed. Response content: {req.text[:200]}")
         finally:
             req.close()
 
@@ -29,12 +33,31 @@ def __post_request(url, json_data):
             rsp = rsp[0]
 
         if not "type" in rsp or not "msg" in rsp:
-            raise Exception(f"API {url}: got response without type or msg from Mailcow API")
+            raise Exception(f"API {url}: got response without type or msg from Mailcow API. URI: {api_url}")
         
         if rsp['type'] != 'success':
-            raise Exception(f"API {url}: {rsp['type']} - {rsp['msg']}")
+            raise Exception(f"API {url}: {rsp['type']} - {rsp['msg']} | URI: {api_url}")
     except requests.exceptions.RequestException as e:
-        raise Exception(f"API request failed: {str(e)}")
+        raise Exception(f"API request failed: {str(e)} | URI: {api_url}")
+
+def __get_source_ip():
+    """Get the source IP address that will be used for outgoing requests to the Mailcow API"""
+    try:
+        # Extract hostname and port from api_host
+        from urllib.parse import urlparse
+        parsed = urlparse(api_host)
+        hostname = parsed.hostname or api_host.split('://')[1].split(':')[0] if '://' in api_host else api_host.split(':')[0]
+        port = parsed.port or (443 if parsed.scheme == 'https' else 80)
+        
+        # Create a socket to determine which local IP would be used to connect to Mailcow
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        # Connect to the Mailcow host (doesn't actually send data, just determines routing)
+        s.connect((hostname, port))
+        local_ip = s.getsockname()[0]
+        s.close()
+        return local_ip
+    except Exception:
+        return "unknown"
 
 def generate_secure_password(length=64):
     """
@@ -110,32 +133,35 @@ def check_user(email):
         
         # Check HTTP status code first
         if req.status_code == 401:
-            raise Exception(f"API authentication failed (401 Unauthorized). Please check your API_KEY.")
+            source_ip = __get_source_ip()
+            raise Exception(f"API authentication failed (401 Unauthorized). URI: {url} | Source IP: {source_ip} | Please check your API_KEY.")
         elif req.status_code == 403:
-            raise Exception(f"API access forbidden (403 Forbidden). Please check that your IP address is allowed to access the Mailcow API and has read-write permissions.")
+            source_ip = __get_source_ip()
+            raise Exception(f"API access forbidden (403 Forbidden). URI: {url} | Source IP: {source_ip} | Please check that IP {source_ip} is allowed to access the Mailcow API and has read-write permissions.")
         elif req.status_code >= 400:
-            raise Exception(f"API request failed with HTTP {req.status_code}: {req.text[:200]}")
+            raise Exception(f"API request failed with HTTP {req.status_code}. URI: {url} | Response: {req.text[:200]}")
         
         # Try to parse JSON
         try:
             rsp = req.json()
         except requests.exceptions.JSONDecodeError as e:
-            raise Exception(f"API returned non-JSON response (status {req.status_code}). This often means API access is denied or IP is not allowed. Response content: {req.text[:200]}")
+            source_ip = __get_source_ip()
+            raise Exception(f"API returned non-JSON response (status {req.status_code}). URI: {url} | Source IP: {source_ip} | This often means API access is denied or IP is not allowed. Response content: {req.text[:200]}")
         finally:
             req.close()
         
         if not isinstance(rsp, dict):
-            raise Exception(f"API get/mailbox: got response of wrong type (expected dict, got {type(rsp).__name__})")
+            raise Exception(f"API get/mailbox: got response of wrong type (expected dict, got {type(rsp).__name__}). URI: {url}")
 
         if (not rsp):
             return (False, False, None)
 
         if 'active_int' not in rsp and rsp['type'] == 'error':
-            raise Exception(f"API {url}: {rsp['type']} - {rsp['msg']}")
+            raise Exception(f"API {url}: {rsp['type']} - {rsp['msg']} | URI: {url}")
         
         return (True, bool(rsp['active_int']), rsp['name'])
     except requests.exceptions.RequestException as e:
-        raise Exception(f"API request failed: {str(e)}")
+        raise Exception(f"API request failed: {str(e)} | URI: {url}")
 
 def get_domains():
     url = f"{api_host}/api/v1/get/domain/all"
@@ -146,22 +172,25 @@ def get_domains():
         
         # Check HTTP status code first
         if req.status_code == 401:
-            raise Exception(f"API authentication failed (401 Unauthorized). Please check your API_KEY.")
+            source_ip = __get_source_ip()
+            raise Exception(f"API authentication failed (401 Unauthorized). URI: {url} | Source IP: {source_ip} | Please check your API_KEY.")
         elif req.status_code == 403:
-            raise Exception(f"API access forbidden (403 Forbidden). Please check that your IP address is allowed to access the Mailcow API and has read-write permissions.")
+            source_ip = __get_source_ip()
+            raise Exception(f"API access forbidden (403 Forbidden). URI: {url} | Source IP: {source_ip} | Please check that IP {source_ip} is allowed to access the Mailcow API and has read-write permissions.")
         elif req.status_code >= 400:
-            raise Exception(f"API request failed with HTTP {req.status_code}: {req.text[:200]}")
+            raise Exception(f"API request failed with HTTP {req.status_code}. URI: {url} | Response: {req.text[:200]}")
         
         # Try to parse JSON
         try:
             rsp = req.json()
         except requests.exceptions.JSONDecodeError as e:
-            raise Exception(f"API returned non-JSON response (status {req.status_code}). This often means API access is denied or IP is not allowed. Response content: {req.text[:200]}")
+            source_ip = __get_source_ip()
+            raise Exception(f"API returned non-JSON response (status {req.status_code}). URI: {url} | Source IP: {source_ip} | This often means API access is denied or IP is not allowed. Response content: {req.text[:200]}")
         finally:
             req.close()
         
         if not isinstance(rsp, list):
-            raise Exception(f"API get/domain/all: got response of wrong type (expected list, got {type(rsp).__name__})")
+            raise Exception(f"API get/domain/all: got response of wrong type (expected list, got {type(rsp).__name__}). URI: {url}")
         
         # Extract domain names from the response
         domains = set()
@@ -171,4 +200,4 @@ def get_domains():
         
         return domains
     except requests.exceptions.RequestException as e:
-        raise Exception(f"API request failed: {str(e)}")
+        raise Exception(f"API request failed: {str(e)} | URI: {url}")
