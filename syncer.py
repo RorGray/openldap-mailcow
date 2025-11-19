@@ -28,19 +28,35 @@ def main():
     api.api_key = config['API_KEY']
 
     while (True):
-        sync()
+        try:
+            sync()
+            logging.info("Sync finished successfully")
+        except Exception as e:
+            logging.error(f"Sync failed with error: {str(e)}")
+            logging.error("Will retry on next cycle")
+        
         interval = int(config['SYNC_INTERVAL'])
-        logging.info(f"Sync finished, sleeping {interval} seconds before next cycle")
+        logging.info(f"Sleeping {interval} seconds before next cycle")
         time.sleep(interval)
 
 def sync():
-    ldap_connector = ldap.initialize(f"{config['LDAP_URI']}")
-    ldap_connector.set_option(ldap.OPT_REFERRALS, 0)
-    ldap_connector.simple_bind_s(config['LDAP_BIND_DN'], config['LDAP_BIND_DN_PASSWORD'])
+    try:
+        ldap_connector = ldap.initialize(f"{config['LDAP_URI']}")
+        ldap_connector.set_option(ldap.OPT_REFERRALS, 0)
+        ldap_connector.simple_bind_s(config['LDAP_BIND_DN'], config['LDAP_BIND_DN_PASSWORD'])
+    except ldap.INVALID_CREDENTIALS:
+        raise Exception(f"LDAP authentication failed: Invalid credentials for {config['LDAP_BIND_DN']}")
+    except ldap.SERVER_DOWN:
+        raise Exception(f"LDAP server is down or unreachable: {config['LDAP_URI']}")
+    except ldap.LDAPError as e:
+        raise Exception(f"LDAP connection error: {str(e)}")
 
-    ldap_results = ldap_connector.search_s(config['LDAP_BASE_DN'], ldap.SCOPE_SUBTREE, 
-                config['LDAP_FILTER'], 
-                [config['IDENTIFIER'], config['NAME_ATTRIBUTE'], config['EMAIL_ATTRIBUTE']])
+    try:
+        ldap_results = ldap_connector.search_s(config['LDAP_BASE_DN'], ldap.SCOPE_SUBTREE, 
+                    config['LDAP_FILTER'], 
+                    [config['IDENTIFIER'], config['NAME_ATTRIBUTE'], config['EMAIL_ATTRIBUTE']])
+    except ldap.LDAPError as e:
+        raise Exception(f"LDAP search failed: {str(e)}")
 
     ldap_results = map(lambda x: (
         x[1][config['EMAIL_ATTRIBUTE']][0].decode(),
@@ -54,56 +70,65 @@ def sync():
     filedb.session_time = datetime.datetime.now()
 
     for (email, ldap_name, ldap_active) in ldap_results:
-        # Check if the domain exists in Mailcow
-        domain = email.split('@')[1] if '@' in email else None
-        if not domain or domain not in available_domains:
-            logging.warning(f"Skipping user {email}: domain '{domain}' not found in Mailcow. Please add the domain first.")
+        try:
+            # Check if the domain exists in Mailcow
+            domain = email.split('@')[1] if '@' in email else None
+            if not domain or domain not in available_domains:
+                logging.warning(f"Skipping user {email}: domain '{domain}' not found in Mailcow. Please add the domain first.")
+                continue
+            
+            (db_user_exists, db_user_active) = filedb.check_user(email)
+            (api_user_exists, api_user_active, api_name) = api.check_user(email)
+
+            unchanged = True
+
+            if not db_user_exists:
+                filedb.add_user(email, ldap_active)
+                (db_user_exists, db_user_active) = (True, ldap_active)
+                logging.info (f"Added filedb user: {email} (Active: {ldap_active})")
+                unchanged = False
+
+            if not api_user_exists:
+                api.add_user(email, ldap_name, ldap_active, config['AUTHSOURCE'])
+                (api_user_exists, api_user_active, api_name) = (True, ldap_active, ldap_name)
+                logging.info (f"Added Mailcow user: {email} (Active: {ldap_active}, AuthSource: {config['AUTHSOURCE']})")
+                unchanged = False
+
+            if db_user_active != ldap_active:
+                filedb.user_set_active_to(email, ldap_active)
+                logging.info (f"{'Activated' if ldap_active else 'Deactived'} {email} in filedb")
+                unchanged = False
+
+            if api_user_active != ldap_active:
+                api.edit_user(email, active=ldap_active)
+                logging.info (f"{'Activated' if ldap_active else 'Deactived'} {email} in Mailcow")
+                unchanged = False
+
+            if api_name != ldap_name:
+                api.edit_user(email, name=ldap_name)
+                logging.info (f"Changed name of {email} in Mailcow to {ldap_name}")
+                unchanged = False
+
+            if unchanged:
+                logging.info (f"Checked user {email}, unchanged")
+        except Exception as e:
+            logging.error(f"Failed to process user {email}: {str(e)}")
+            logging.error(f"Continuing with next user...")
             continue
-        
-        (db_user_exists, db_user_active) = filedb.check_user(email)
-        (api_user_exists, api_user_active, api_name) = api.check_user(email)
-
-        unchanged = True
-
-        if not db_user_exists:
-            filedb.add_user(email, ldap_active)
-            (db_user_exists, db_user_active) = (True, ldap_active)
-            logging.info (f"Added filedb user: {email} (Active: {ldap_active})")
-            unchanged = False
-
-        if not api_user_exists:
-            api.add_user(email, ldap_name, ldap_active, config['AUTHSOURCE'])
-            (api_user_exists, api_user_active, api_name) = (True, ldap_active, ldap_name)
-            logging.info (f"Added Mailcow user: {email} (Active: {ldap_active}, AuthSource: {config['AUTHSOURCE']})")
-            unchanged = False
-
-        if db_user_active != ldap_active:
-            filedb.user_set_active_to(email, ldap_active)
-            logging.info (f"{'Activated' if ldap_active else 'Deactived'} {email} in filedb")
-            unchanged = False
-
-        if api_user_active != ldap_active:
-            api.edit_user(email, active=ldap_active)
-            logging.info (f"{'Activated' if ldap_active else 'Deactived'} {email} in Mailcow")
-            unchanged = False
-
-        if api_name != ldap_name:
-            api.edit_user(email, name=ldap_name)
-            logging.info (f"Changed name of {email} in Mailcow to {ldap_name}")
-            unchanged = False
-
-        if unchanged:
-            logging.info (f"Checked user {email}, unchanged")
 
     for email in filedb.get_unchecked_active_users():
-        (api_user_exists, api_user_active, _) = api.check_user(email)
+        try:
+            (api_user_exists, api_user_active, _) = api.check_user(email)
 
-        if (api_user_active and api_user_active):
-            api.edit_user(email, active=False)
-            logging.info (f"Deactivated user {email} in Mailcow, not found in LDAP")
-        
-        filedb.user_set_active_to(email, False)
-        logging.info (f"Deactivated user {email} in filedb, not found in LDAP")
+            if (api_user_active and api_user_active):
+                api.edit_user(email, active=False)
+                logging.info (f"Deactivated user {email} in Mailcow, not found in LDAP")
+            
+            filedb.user_set_active_to(email, False)
+            logging.info (f"Deactivated user {email} in filedb, not found in LDAP")
+        except Exception as e:
+            logging.error(f"Failed to deactivate user {email}: {str(e)}")
+            continue
 
 def apply_config(config_file, config_data):
     if os.path.isfile(config_file):

@@ -1,22 +1,40 @@
 import random, string, sys
 import requests
+import logging
 
 def __post_request(url, json_data):
     api_url = f"{api_host}/{url}"
     headers = {'X-API-Key': api_key, 'Content-type': 'application/json'}
 
-    req = requests.post(api_url, headers=headers, json=json_data)
-    rsp = req.json()
-    req.close()
+    try:
+        req = requests.post(api_url, headers=headers, json=json_data)
+        
+        # Check HTTP status code first
+        if req.status_code == 401:
+            raise Exception(f"API authentication failed (401 Unauthorized). Please check your API_KEY.")
+        elif req.status_code == 403:
+            raise Exception(f"API access forbidden (403 Forbidden). Please check that your IP address is allowed to access the Mailcow API and has read-write permissions.")
+        elif req.status_code >= 400:
+            raise Exception(f"API request failed with HTTP {req.status_code}: {req.text[:200]}")
+        
+        # Try to parse JSON
+        try:
+            rsp = req.json()
+        except requests.exceptions.JSONDecodeError as e:
+            raise Exception(f"API returned non-JSON response (status {req.status_code}). This often means API access is denied or IP is not allowed. Response content: {req.text[:200]}")
+        finally:
+            req.close()
 
-    if isinstance(rsp, list):
-        rsp = rsp[0]
+        if isinstance(rsp, list):
+            rsp = rsp[0]
 
-    if not "type" in rsp or not "msg" in rsp:
-        sys.exit(f"API {url}: got response without type or msg from Mailcow API")
-    
-    if rsp['type'] != 'success':
-        sys.exit(f"API {url}: {rsp['type']} - {rsp['msg']}")
+        if not "type" in rsp or not "msg" in rsp:
+            raise Exception(f"API {url}: got response without type or msg from Mailcow API")
+        
+        if rsp['type'] != 'success':
+            raise Exception(f"API {url}: {rsp['type']} - {rsp['msg']}")
+    except requests.exceptions.RequestException as e:
+        raise Exception(f"API request failed: {str(e)}")
 
 def generate_secure_password(length=64):
     """
@@ -86,35 +104,71 @@ def __delete_user(email):
 def check_user(email):
     url = f"{api_host}/api/v1/get/mailbox/{email}"
     headers = {'X-API-Key': api_key, 'Content-type': 'application/json'}
-    req = requests.get(url, headers=headers)
-    rsp = req.json()
-    req.close()
     
-    if not isinstance(rsp, dict):
-        sys.exit("API get/mailbox: got response of a wrong type")
+    try:
+        req = requests.get(url, headers=headers)
+        
+        # Check HTTP status code first
+        if req.status_code == 401:
+            raise Exception(f"API authentication failed (401 Unauthorized). Please check your API_KEY.")
+        elif req.status_code == 403:
+            raise Exception(f"API access forbidden (403 Forbidden). Please check that your IP address is allowed to access the Mailcow API and has read-write permissions.")
+        elif req.status_code >= 400:
+            raise Exception(f"API request failed with HTTP {req.status_code}: {req.text[:200]}")
+        
+        # Try to parse JSON
+        try:
+            rsp = req.json()
+        except requests.exceptions.JSONDecodeError as e:
+            raise Exception(f"API returned non-JSON response (status {req.status_code}). This often means API access is denied or IP is not allowed. Response content: {req.text[:200]}")
+        finally:
+            req.close()
+        
+        if not isinstance(rsp, dict):
+            raise Exception(f"API get/mailbox: got response of wrong type (expected dict, got {type(rsp).__name__})")
 
-    if (not rsp):
-        return (False, False, None)
+        if (not rsp):
+            return (False, False, None)
 
-    if 'active_int' not in rsp and rsp['type'] == 'error':
-        sys.exit(f"API {url}: {rsp['type']} - {rsp['msg']}")
-    
-    return (True, bool(rsp['active_int']), rsp['name'])
+        if 'active_int' not in rsp and rsp['type'] == 'error':
+            raise Exception(f"API {url}: {rsp['type']} - {rsp['msg']}")
+        
+        return (True, bool(rsp['active_int']), rsp['name'])
+    except requests.exceptions.RequestException as e:
+        raise Exception(f"API request failed: {str(e)}")
 
 def get_domains():
     url = f"{api_host}/api/v1/get/domain/all"
     headers = {'X-API-Key': api_key, 'Content-type': 'application/json'}
-    req = requests.get(url, headers=headers)
-    rsp = req.json()
-    req.close()
     
-    if not isinstance(rsp, list):
-        sys.exit("API get/domain/all: got response of a wrong type")
-    
-    # Extract domain names from the response
-    domains = set()
-    for domain_info in rsp:
-        if 'domain_name' in domain_info:
-            domains.add(domain_info['domain_name'])
-    
-    return domains
+    try:
+        req = requests.get(url, headers=headers)
+        
+        # Check HTTP status code first
+        if req.status_code == 401:
+            raise Exception(f"API authentication failed (401 Unauthorized). Please check your API_KEY.")
+        elif req.status_code == 403:
+            raise Exception(f"API access forbidden (403 Forbidden). Please check that your IP address is allowed to access the Mailcow API and has read-write permissions.")
+        elif req.status_code >= 400:
+            raise Exception(f"API request failed with HTTP {req.status_code}: {req.text[:200]}")
+        
+        # Try to parse JSON
+        try:
+            rsp = req.json()
+        except requests.exceptions.JSONDecodeError as e:
+            raise Exception(f"API returned non-JSON response (status {req.status_code}). This often means API access is denied or IP is not allowed. Response content: {req.text[:200]}")
+        finally:
+            req.close()
+        
+        if not isinstance(rsp, list):
+            raise Exception(f"API get/domain/all: got response of wrong type (expected list, got {type(rsp).__name__})")
+        
+        # Extract domain names from the response
+        domains = set()
+        for domain_info in rsp:
+            if 'domain_name' in domain_info:
+                domains.add(domain_info['domain_name'])
+        
+        return domains
+    except requests.exceptions.RequestException as e:
+        raise Exception(f"API request failed: {str(e)}")
